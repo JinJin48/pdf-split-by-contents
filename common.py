@@ -2,7 +2,6 @@ import os
 import sys
 import re
 import logging
-import json
 import time
 import datetime
 
@@ -10,7 +9,6 @@ import datetime
 INPUT_DIR = "input_pdf"
 OUTPUT_DIR = "split_pdf"
 LOG_FILE = "pdf-split.log"
-PROGRESS_FILE = "split_progress.json"
 LARGE_FILE_THRESHOLD = 45 * 1024 * 1024  # 45MB
 
 
@@ -25,23 +23,6 @@ def setup_logging(background_mode, log_file=LOG_FILE):
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=handlers
     )
-
-
-def load_progress(progress_file=PROGRESS_FILE):
-    """Load progress from json."""
-    if os.path.exists(progress_file):
-        try:
-            with open(progress_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-
-def save_progress(progress_data, progress_file=PROGRESS_FILE):
-    """Save progress to json."""
-    with open(progress_file, 'w', encoding='utf-8') as f:
-        json.dump(progress_data, f, indent=2, ensure_ascii=False)
 
 
 def estimate_time(start_wall_time, processed_count, total_count):

@@ -21,8 +21,7 @@ import fitz  # PyMuPDF
 
 from common import (
     INPUT_DIR, OUTPUT_DIR, LARGE_FILE_THRESHOLD,
-    setup_logging, load_progress, save_progress,
-    estimate_time, clean_filename
+    setup_logging, estimate_time, clean_filename
 )
 
 
@@ -40,9 +39,8 @@ class PdfSplitter:
     def split_smart(self, output_dir):
         """
         Smart split based on document structure:
-        - L2 = Chapter (Primary split)
-        - L3 = Section (Secondary if L2 > 50 pages)
-        - Force split if > 50 pages and no L3
+        - L3 = Section (Primary split)
+        - L2 = Chapter (Fallback if no sections exist)
         """
         toc = self.doc.get_toc()
         if not toc:
@@ -58,7 +56,7 @@ class PdfSplitter:
 
         first_node_start = toc[l2_indices[0]][2] - 1
         if first_node_start > 0:
-            ranges.append((0, first_node_start - 1, "00_Frontmatter"))
+            ranges.append((0, first_node_start - 1, "00_Contents"))
 
         for i, idx in enumerate(l2_indices):
             node = toc[idx]
@@ -73,41 +71,34 @@ class PdfSplitter:
             else:
                 end_page = self.doc.page_count - 1
 
-            page_count = end_page - start_page + 1
             safe_title = clean_filename(title)
 
-            THRESHOLD = 50
-            if page_count > THRESHOLD:
-                children = []
-                for k in range(idx + 1, next_l2_idx):
-                    child = toc[k]
-                    if child[0] == lvl + 1:
-                        children.append((k, child))
+            # Find child sections (Level 3)
+            children = []
+            for k in range(idx + 1, next_l2_idx):
+                child = toc[k]
+                if child[0] == lvl + 1:
+                    children.append((k, child))
 
-                if children:
-                    first_child_start = children[0][1][2] - 1
-                    if first_child_start > start_page:
-                        ranges.append((start_page, first_child_start - 1, f"{safe_title}_Intro"))
+            if children:
+                # Split by sections
+                first_child_start = children[0][1][2] - 1
+                if first_child_start > start_page:
+                    ranges.append((start_page, first_child_start - 1, f"{safe_title}_Intro"))
 
-                    for j, (pidx, child_node) in enumerate(children):
-                        c_title = child_node[1]
-                        c_start = child_node[2] - 1
+                for j, (pidx, child_node) in enumerate(children):
+                    c_title = child_node[1]
+                    c_start = child_node[2] - 1
 
-                        if j < len(children) - 1:
-                            c_end = children[j + 1][1][2] - 1 - 1
-                        else:
-                            c_end = end_page
+                    if j < len(children) - 1:
+                        c_end = children[j + 1][1][2] - 1 - 1
+                    else:
+                        c_end = end_page
 
-                        c_len = c_end - c_start + 1
-                        c_safe_title = clean_filename(c_title)
-
-                        if c_len > THRESHOLD:
-                            self._add_forced_splits(ranges, c_start, c_end, c_safe_title, THRESHOLD)
-                        else:
-                            ranges.append((c_start, c_end, c_safe_title))
-                else:
-                    self._add_forced_splits(ranges, start_page, end_page, safe_title, THRESHOLD)
+                    c_safe_title = clean_filename(c_title)
+                    ranges.append((c_start, c_end, c_safe_title))
             else:
+                # No sections, keep as chapter
                 ranges.append((start_page, end_page, safe_title))
 
         return self._save_ranges(ranges, output_dir)
@@ -214,7 +205,7 @@ class PdfSplitter:
         self.doc.close()
 
 
-def split_pdf(pdf_path, output_dir, background_mode=False, force_split=False):
+def split_pdf(pdf_path, output_dir, background_mode=False):
     """
     Split a single PDF file.
 
@@ -222,7 +213,6 @@ def split_pdf(pdf_path, output_dir, background_mode=False, force_split=False):
         pdf_path: Path to the PDF file
         output_dir: Output directory for split files
         background_mode: If True, skip GUI prompts
-        force_split: If True, split even small files
 
     Returns:
         List of paths to split PDF files
@@ -233,7 +223,7 @@ def split_pdf(pdf_path, output_dir, background_mode=False, force_split=False):
 
     file_size = pdf_path.stat().st_size
 
-    if not force_split and file_size < LARGE_FILE_THRESHOLD:
+    if file_size < LARGE_FILE_THRESHOLD:
         logging.info(f"File {pdf_path.name} is small ({file_size / 1024 / 1024:.2f} MB). No split needed.")
         return [pdf_path]
 
@@ -283,7 +273,6 @@ Examples:
   python pdf-split.py                      Process all PDFs in input_pdf/
   python pdf-split.py document.pdf         Split a single PDF
   python pdf-split.py -o output_folder     Specify output directory
-  python pdf-split.py --force              Force split even small files
   python pdf-split.py --background         Run without GUI prompts
         """
     )
@@ -291,8 +280,6 @@ Examples:
                         help="Path to PDF file (optional, processes all PDFs in input_pdf/ if not specified)")
     parser.add_argument("-o", "--output", default=OUTPUT_DIR,
                         help=f"Output directory for split PDFs (default: {OUTPUT_DIR})")
-    parser.add_argument("--force", action="store_true",
-                        help="Force split even if file is small")
     parser.add_argument("--background", action="store_true",
                         help="Run in background mode (no GUI prompts)")
     args = parser.parse_args()
@@ -315,30 +302,15 @@ Examples:
         logging.warning(f"No PDFs found. Place PDF files in '{INPUT_DIR}/' folder.")
         return
 
-    progress = load_progress()
     start_time = time.time()
     processed_count = 0
     total_count = len(pdfs)
 
     for pdf in pdfs:
-        name = pdf.stem
         logging.info(f"Processing: {pdf.name}")
 
-        if name in progress and progress[name].get("status") == "done" and not args.force:
-            logging.info(f"Skipping {name} (already processed). Use --force to reprocess.")
-            processed_count += 1
-            estimate_time(start_time, processed_count, total_count)
-            continue
-
-        pdf_output_dir = output_dir / name
-        chunks = split_pdf(pdf, pdf_output_dir, args.background, args.force)
-
-        progress[name] = {
-            "status": "done",
-            "chunks": len(chunks),
-            "output_dir": str(pdf_output_dir)
-        }
-        save_progress(progress)
+        pdf_output_dir = output_dir / pdf.stem
+        chunks = split_pdf(pdf, pdf_output_dir, args.background)
 
         logging.info(f"Split into {len(chunks)} chunk(s)")
         processed_count += 1
