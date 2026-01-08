@@ -27,7 +27,10 @@ python pdf-split.py document.pdf
 # 出力先を指定
 python pdf-split.py -o custom_output
 
-# バックグラウンドモード（GUIプロンプトなし）
+# ブックマークがない場合はスキップ
+python pdf-split.py --no-split
+
+# バックグラウンドモード（ブックマークなしはスキップ）
 python pdf-split.py --background
 ```
 
@@ -37,7 +40,8 @@ python pdf-split.py --background
 |------------|------|
 | `pdf` | 処理するPDFファイルのパス（省略時は`input_pdf/`内の全PDF） |
 | `-o, --output` | 出力ディレクトリ（デフォルト: `split_pdf`） |
-| `--background` | GUIプロンプトを表示しないバックグラウンドモード |
+| `--no-split` | ブックマークがない場合、分割せずスキップ |
+| `--background` | GUIプロンプトなしで実行（ブックマークなしはスキップ） |
 
 ## フォルダ構成
 
@@ -57,8 +61,9 @@ pdf-split/
    - 節がない章はそのまま章（Level 2）単位で分割
 
 2. ブックマークがない場合:
-   - 対話モード: ユーザーにページ範囲を入力してもらう
-   - バックグラウンドモード: 50ページ単位で自動分割
+   - 通常モード: ユーザーにページ範囲を入力してもらう（キャンセルでスキップ）
+   - `--no-split`指定時: 分割せずスキップ
+   - `--background`指定時: 分割せずスキップ（警告メッセージ出力）
 
 ## 出力ファイル名
 

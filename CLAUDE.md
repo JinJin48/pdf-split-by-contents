@@ -10,8 +10,8 @@
 
 - **自動分割**: PDFのブックマーク（目次）構造に基づいて節（Level 3）単位で分割
 - **手動分割**: ページ範囲を指定して任意の位置で分割
-- **固定ページ分割**: 指定ページ数ごとに均等分割
-- **バックグラウンドモード**: GUIなしで自動処理
+- **スキップ機能**: ブックマークがないPDFを分割せずスキップ（--no-split）
+- **バックグラウンドモード**: GUIなしで自動処理（ブックマークなしはスキップ）
 
 ### 用途
 
@@ -27,7 +27,8 @@ pdf-split/
 ├── requirements.txt  # 依存パッケージ
 ├── input_pdf/        # 入力PDFを配置
 │   └── .gitkeep
-├── split_pdf/        # 分割されたPDFの出力先（実行時に作成）
+├── split_pdf/        # 分割されたPDFの出力先
+│   └── .gitkeep
 ├── .gitignore
 ├── CLAUDE.md         # 本ファイル
 └── README.md
@@ -47,12 +48,12 @@ pdf-split/
 - `PdfSplitter`: PDF分割クラス
   - `split_smart()`: ブックマーク構造に基づく自動分割
   - `split_manually()`: ページ範囲指定による手動分割
-  - `split_by_pages()`: 固定ページ数での分割
-- `split_pdf()`: 単一PDF処理のエントリーポイント
+- `split_pdf()`: 単一PDF処理のエントリーポイント（no_split/background対応）
 - `main()`: CLI引数処理
 
 **common.py**
 - `INPUT_DIR`, `OUTPUT_DIR`: 入出力ディレクトリ設定
+- `LOG_FILE`: ログファイルパス（pdf-split.log）
 - `LARGE_FILE_THRESHOLD`: 分割対象サイズ閾値（45MB）
 - `setup_logging()`: ロギング設定
 - `estimate_time()`: 残り時間推定
@@ -64,13 +65,13 @@ pdf-split/
 
 - ブックマーク構造（Level 2/3）に基づく自動分割
 - 手動ページ範囲指定による分割
-- 固定ページ数での均等分割
-- バックグラウンドモード対応
+- --no-split オプション（ブックマークなしはスキップ）
+- バックグラウンドモード対応（ブックマークなしはスキップ）
 - 進捗推定・ロギング
 
 ### 既知の課題
 
-- ブックマークがないPDFでは手動入力またはデフォルト分割が必要
+- 特になし
 
 ## 今後の予定
 
@@ -93,15 +94,24 @@ python pdf-split.py document.pdf
 # 出力先指定
 python pdf-split.py -o custom_output
 
-# バックグラウンドモード
+# ブックマークがない場合はスキップ
+python pdf-split.py --no-split
+
+# バックグラウンドモード（ブックマークなしはスキップ）
 python pdf-split.py --background
 ```
 
 ### 分割ロジック
 
 1. ファイルサイズが45MB未満 → 分割せずそのまま
-2. 45MB以上でブックマークあり → 節（Level 3）単位で分割
-3. 45MB以上でブックマークなし → 手動入力または50ページ単位
+2. 45MB以上でブックマークあり:
+   - Level 2（章）を基準に探索（なければLevel 1にフォールバック）
+   - 各章の下にLevel 3（節）があれば節単位で分割
+   - 節がなければ章単位で分割
+3. 45MB以上でブックマークなし:
+   - 通常モード: ユーザーにページ範囲入力を求める（キャンセルでスキップ）
+   - --no-split指定時: スキップ
+   - --background指定時: スキップ（警告出力）
 
 ### ログ
 

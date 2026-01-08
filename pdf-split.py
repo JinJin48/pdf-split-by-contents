@@ -6,7 +6,8 @@ Usage:
     python pdf-split.py                           # Process all PDFs in input_pdf/
     python pdf-split.py document.pdf              # Process a single PDF
     python pdf-split.py -o custom_output          # Specify output directory
-    python pdf-split.py --background              # Run without GUI prompts
+    python pdf-split.py --background              # Run without GUI prompts (skip if no bookmarks)
+    python pdf-split.py --no-split                # Skip PDFs without bookmarks
 """
 
 import os
@@ -205,7 +206,7 @@ class PdfSplitter:
         self.doc.close()
 
 
-def split_pdf(pdf_path, output_dir, background_mode=False):
+def split_pdf(pdf_path, output_dir, background_mode=False, no_split=False):
     """
     Split a single PDF file.
 
@@ -213,9 +214,10 @@ def split_pdf(pdf_path, output_dir, background_mode=False):
         pdf_path: Path to the PDF file
         output_dir: Output directory for split files
         background_mode: If True, skip GUI prompts
+        no_split: If True, skip files without bookmarks
 
     Returns:
-        List of paths to split PDF files
+        List of paths to split PDF files, or None if skipped
     """
     pdf_path = Path(pdf_path)
     output_dir = Path(output_dir)
@@ -234,7 +236,10 @@ def split_pdf(pdf_path, output_dir, background_mode=False):
         chunks = splitter.split_by_bookmarks(output_dir)
         if not chunks:
             logging.warning("No suitable bookmarks found for splitting.")
-            if not background_mode:
+            if no_split or background_mode:
+                logging.warning(f"Skipping '{pdf_path.name}' - no bookmarks available.")
+                return None
+            else:
                 root = tk.Tk()
                 root.withdraw()
                 page_count = splitter.page_count
@@ -248,11 +253,8 @@ def split_pdf(pdf_path, output_dir, background_mode=False):
                 if range_str:
                     chunks = splitter.split_manually(range_str, output_dir)
                 else:
-                    logging.info("No ranges specified. Splitting by 50 pages.")
-                    chunks = splitter.split_by_pages(50, output_dir)
-            else:
-                logging.info("Background mode: Splitting by 50 pages.")
-                chunks = splitter.split_by_pages(50, output_dir)
+                    logging.warning(f"Skipping '{pdf_path.name}' - no ranges specified.")
+                    return None
     except Exception as e:
         logging.error(f"Split failed: {e}")
         import traceback
@@ -273,7 +275,8 @@ Examples:
   python pdf-split.py                      Process all PDFs in input_pdf/
   python pdf-split.py document.pdf         Split a single PDF
   python pdf-split.py -o output_folder     Specify output directory
-  python pdf-split.py --background         Run without GUI prompts
+  python pdf-split.py --background         Run without GUI prompts (skip if no bookmarks)
+  python pdf-split.py --no-split           Skip PDFs without bookmarks
         """
     )
     parser.add_argument("pdf", nargs="?",
@@ -281,7 +284,9 @@ Examples:
     parser.add_argument("-o", "--output", default=OUTPUT_DIR,
                         help=f"Output directory for split PDFs (default: {OUTPUT_DIR})")
     parser.add_argument("--background", action="store_true",
-                        help="Run in background mode (no GUI prompts)")
+                        help="Run in background mode (no GUI prompts, skip if no bookmarks)")
+    parser.add_argument("--no-split", action="store_true",
+                        help="Skip PDFs without bookmarks instead of prompting")
     args = parser.parse_args()
 
     setup_logging(args.background)
@@ -310,9 +315,12 @@ Examples:
         logging.info(f"Processing: {pdf.name}")
 
         pdf_output_dir = output_dir / pdf.stem
-        chunks = split_pdf(pdf, pdf_output_dir, args.background)
+        chunks = split_pdf(pdf, pdf_output_dir, args.background, args.no_split)
 
-        logging.info(f"Split into {len(chunks)} chunk(s)")
+        if chunks is None:
+            logging.info(f"Skipped: {pdf.name}")
+        else:
+            logging.info(f"Split into {len(chunks)} chunk(s)")
         processed_count += 1
         estimate_time(start_time, processed_count, total_count)
 
