@@ -1,4 +1,4 @@
-# PDF Splitter
+# pdf-split-by-contents
 
 大容量PDFファイルをブックマーク構造またはページ範囲で分割するツール。
 
@@ -19,19 +19,19 @@ pip install -r requirements.txt
 
 ```bash
 # input_pdf/ フォルダ内の全PDFを処理
-python pdf-split.py
+python pdf-split-by-contents.py
 
 # 単一のPDFファイルを処理
-python pdf-split.py document.pdf
+python pdf-split-by-contents.py document.pdf
 
 # 出力先を指定
-python pdf-split.py -o custom_output
+python pdf-split-by-contents.py -o custom_output
 
 # ブックマークがない場合はスキップ
-python pdf-split.py --no-split
+python pdf-split-by-contents.py --no-split
 
 # バックグラウンドモード（ブックマークなしはスキップ）
-python pdf-split.py --background
+python pdf-split-by-contents.py --background
 ```
 
 ### オプション
@@ -46,12 +46,12 @@ python pdf-split.py --background
 ## フォルダ構成
 
 ```
-pdf-split/
-├── pdf-split.py      # メインスクリプト
-├── common.py         # 共通ユーティリティ
-├── requirements.txt  # 依存パッケージ
-├── input_pdf/        # 入力PDFを配置
-└── split_pdf/        # 分割されたPDFの出力先
+pdf-split-by-contents/
+├── pdf-split-by-contents.py  # メインスクリプト
+├── common.py                 # 共通ユーティリティ
+├── requirements.txt          # 依存パッケージ
+├── input_pdf/                # 入力PDF配置
+└── split_pdf/                # 分割されたPDFの出力先
 ```
 
 ## 分割ロジック

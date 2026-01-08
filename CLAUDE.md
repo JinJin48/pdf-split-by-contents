@@ -21,16 +21,16 @@
 ## ディレクトリ構造
 
 ```
-pdf-split/
-├── pdf-split.py      # メインスクリプト
-├── common.py         # 共通ユーティリティ（設定、ロギング）
-├── requirements.txt  # 依存パッケージ
-├── input_pdf/        # 入力PDFを配置
+pdf-split-by-contents/
+├── pdf-split-by-contents.py  # メインスクリプト
+├── common.py                 # 共通ユーティリティ（設定、ロギング）
+├── requirements.txt          # 依存パッケージ
+├── input_pdf/                # 入力PDFを配置
 │   └── .gitkeep
-├── split_pdf/        # 分割されたPDFの出力先
+├── split_pdf/                # 分割されたPDFの出力先
 │   └── .gitkeep
 ├── .gitignore
-├── CLAUDE.md         # 本ファイル
+├── CLAUDE.md                 # 本ファイル
 └── README.md
 ```
 
@@ -44,7 +44,7 @@ pdf-split/
 
 ### 主要モジュール
 
-**pdf-split.py**
+**pdf-split-by-contents.py**
 - `PdfSplitter`: PDF分割クラス
   - `split_smart()`: ブックマーク構造に基づく自動分割
   - `split_manually()`: ページ範囲指定による手動分割
@@ -86,19 +86,19 @@ pdf-split/
 pip install -r requirements.txt
 
 # input_pdf/内の全PDFを処理
-python pdf-split.py
+python pdf-split-by-contents.py
 
 # 単一PDF処理
-python pdf-split.py document.pdf
+python pdf-split-by-contents.py document.pdf
 
 # 出力先指定
-python pdf-split.py -o custom_output
+python pdf-split-by-contents.py -o custom_output
 
 # ブックマークがない場合はスキップ
-python pdf-split.py --no-split
+python pdf-split-by-contents.py --no-split
 
 # バックグラウンドモード（ブックマークなしはスキップ）
-python pdf-split.py --background
+python pdf-split-by-contents.py --background
 ```
 
 ### 分割ロジック
