@@ -2,13 +2,14 @@
 """
 PDF Splitter - Split large PDFs by bookmarks or manually specified ranges.
 
+Automatically extracts ISBN from filename and fetches metadata from Google Books API.
+
 Usage:
-    python pdf-split.py                           # Process all PDFs in input_pdf/
-    python pdf-split.py document.pdf              # Process a single PDF
-    python pdf-split.py -o custom_output          # Specify output directory
-    python pdf-split.py --background              # Run without GUI prompts (skip if no bookmarks)
-    python pdf-split.py --no-split                # Skip PDFs without bookmarks
-    python pdf-split.py --title "Book Title" --author "Author Name"  # Add metadata
+    python pdf-split-by-contents.py                    # Process all PDFs in input_pdf/
+    python pdf-split-by-contents.py 978-xxx_book.pdf   # Process single PDF (ISBN auto-extracted)
+    python pdf-split-by-contents.py -o custom_output   # Specify output directory
+    python pdf-split-by-contents.py --background       # Run without GUI prompts
+    python pdf-split-by-contents.py --genre "法律"     # Override/add metadata
 """
 
 import os
@@ -16,7 +17,6 @@ import sys
 import argparse
 import logging
 import time
-import datetime
 import tkinter as tk
 from tkinter import simpledialog
 from pathlib import Path
@@ -24,7 +24,8 @@ import fitz  # PyMuPDF
 
 from common import (
     INPUT_DIR, OUTPUT_DIR, LARGE_FILE_THRESHOLD,
-    setup_logging, estimate_time, clean_filename
+    setup_logging, estimate_time, clean_filename,
+    extract_isbn_from_filename, fetch_metadata_from_google_books
 )
 
 
@@ -200,7 +201,6 @@ class PdfSplitter:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        split_date = datetime.date.today().isoformat()
         total_splits = len(ranges)
 
         for i, range_data in enumerate(ranges):
@@ -224,7 +224,7 @@ class PdfSplitter:
 
             # Generate YAML metadata file
             self._write_metadata_yaml(
-                fpath, i + 1, total_splits, chapter_num, chapter_title, total_chapters, split_date
+                fpath, i + 1, total_splits, chapter_num, chapter_title, total_chapters
             )
 
             logging.info(f"Created chunk: {fname} (Pages {start + 1}-{end + 1})")
@@ -232,43 +232,56 @@ class PdfSplitter:
         return files
 
     def _write_metadata_yaml(self, pdf_path, split_index, total_splits,
-                              chapter_num, chapter_title, total_chapters, split_date):
+                              chapter_num, chapter_title, total_chapters):
         """Write YAML metadata file for a split PDF."""
         yaml_path = pdf_path.with_suffix('.yaml')
 
         # Build metadata dict with only specified values
-        meta = {}
+        # Use ordered insertion for consistent output
+        lines = []
 
-        # Parent document info (always included)
-        meta['parent_document'] = self.pdf_path.name
+        # parent_document: タイトル（APIから取得またはCLIで指定）
+        if self.metadata.get('parent_document'):
+            lines.append(('parent_document', self.metadata['parent_document']))
 
-        # Book metadata (only if specified)
-        if self.metadata.get('title'):
-            meta['parent_title'] = self.metadata['title']
+        # isbn
         if self.metadata.get('isbn'):
-            meta['isbn'] = self.metadata['isbn']
+            lines.append(('isbn', self.metadata['isbn']))
+
+        # author
         if self.metadata.get('author'):
-            meta['author'] = self.metadata['author']
+            lines.append(('author', self.metadata['author']))
+
+        # publisher
         if self.metadata.get('publisher'):
-            meta['publisher'] = self.metadata['publisher']
+            lines.append(('publisher', self.metadata['publisher']))
+
+        # published_date
         if self.metadata.get('published_date'):
-            meta['published_date'] = self.metadata['published_date']
-        if self.metadata.get('genre'):
-            meta['genre'] = self.metadata['genre']
+            lines.append(('published_date', self.metadata['published_date']))
+
+        # description
         if self.metadata.get('description'):
-            meta['description'] = self.metadata['description']
+            lines.append(('description', self.metadata['description']))
+
+        # language
+        if self.metadata.get('language'):
+            lines.append(('language', self.metadata['language']))
+
+        # genre
+        if self.metadata.get('genre'):
+            lines.append(('genre', self.metadata['genre']))
 
         # Split info (always included)
-        meta['chapter_number'] = chapter_num
-        meta['chapter_title'] = chapter_title
-        meta['total_chapters'] = total_chapters
-        meta['split_index'] = split_index
-        meta['split_date'] = split_date
+        lines.append(('chapter_number', chapter_num))
+        lines.append(('chapter_title', chapter_title))
+        lines.append(('total_chapters', total_chapters))
+        lines.append(('split_index', split_index))
 
         # Write YAML manually (avoid PyYAML dependency)
         with open(yaml_path, 'w', encoding='utf-8') as f:
             f.write('---\n')
-            for key, value in meta.items():
+            for key, value in lines:
                 # Handle special characters in values
                 if isinstance(value, str) and any(c in value for c in ':#{}[]&*?|-<>=!%@\\'):
                     f.write(f'{key}: "{value}"\n')
@@ -346,16 +359,20 @@ def split_pdf(pdf_path, output_dir, background_mode=False, no_split=False, metad
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PDF Splitter - Split large PDFs by bookmarks or page ranges",
+        description="PDF Splitter - Split large PDFs by bookmarks or page ranges. "
+                    "Automatically extracts ISBN from filename and fetches metadata from Google Books API.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python pdf-split.py                      Process all PDFs in input_pdf/
-  python pdf-split.py document.pdf         Split a single PDF
-  python pdf-split.py -o output_folder     Specify output directory
-  python pdf-split.py --background         Run without GUI prompts (skip if no bookmarks)
-  python pdf-split.py --no-split           Skip PDFs without bookmarks
-  python pdf-split.py --title "Book Title" --author "Author Name"  Add metadata
+  python pdf-split-by-contents.py                      Process all PDFs in input_pdf/
+  python pdf-split-by-contents.py 978-xxx_book.pdf     Split a single PDF (ISBN auto-extracted)
+  python pdf-split-by-contents.py -o output_folder     Specify output directory
+  python pdf-split-by-contents.py --background         Run without GUI prompts
+  python pdf-split-by-contents.py --genre "法律"       Override/add genre (API取得が粗いため推奨)
+
+Filename format for auto ISBN extraction:
+  ISBN13_任意.pdf       e.g., 9784123456789_BookTitle.pdf
+  ISBN-13-hyphens.pdf   e.g., 978-4-12-345678-9.pdf (hyphens auto-removed)
         """
     )
     parser.add_argument("pdf", nargs="?",
@@ -367,27 +384,17 @@ Examples:
     parser.add_argument("--no-split", action="store_true",
                         help="Skip PDFs without bookmarks instead of prompting")
 
-    # Metadata options
-    parser.add_argument("--title", help="Book title (defaults to filename if not specified)")
-    parser.add_argument("--isbn", help="ISBN (13 digits)")
-    parser.add_argument("--author", help="Author name")
-    parser.add_argument("--publisher", help="Publisher name")
-    parser.add_argument("--published-date", help="Publication date (YYYY-MM-DD format)")
-    parser.add_argument("--genre", help="Genre/category")
-    parser.add_argument("--description", help="Book description/summary")
+    # Metadata override options (override API-fetched values)
+    parser.add_argument("--title", help="Book title (overrides API-fetched value)")
+    parser.add_argument("--isbn", help="ISBN (13 digits, overrides filename extraction)")
+    parser.add_argument("--author", help="Author name (overrides API)")
+    parser.add_argument("--publisher", help="Publisher name (overrides API)")
+    parser.add_argument("--published-date", help="Publication date (overrides API)")
+    parser.add_argument("--genre", help="Genre/category (recommended: API取得が粗いため)")
+    parser.add_argument("--description", help="Book description (overrides API)")
+    parser.add_argument("--language", help="Language code (overrides API, e.g., ja, en)")
 
     args = parser.parse_args()
-
-    # Build metadata dict from CLI options
-    metadata = {
-        'title': args.title,
-        'isbn': args.isbn,
-        'author': args.author,
-        'publisher': args.publisher,
-        'published_date': args.published_date,
-        'genre': args.genre,
-        'description': args.description,
-    }
 
     setup_logging(args.background)
     logging.info("=== PDF Splitter Started ===")
@@ -413,6 +420,43 @@ Examples:
 
     for pdf in pdfs:
         logging.info(f"Processing: {pdf.name}")
+
+        # Build metadata for this PDF
+        metadata = {}
+
+        # Step 1: Extract ISBN from filename (if not overridden)
+        isbn = args.isbn
+        if not isbn:
+            try:
+                isbn = extract_isbn_from_filename(pdf.name)
+                if isbn:
+                    logging.info(f"Extracted ISBN from filename: {isbn}")
+            except ValueError as e:
+                logging.error(f"ISBN extraction error: {e}")
+                isbn = None
+
+        if isbn:
+            metadata['isbn'] = isbn
+
+            # Step 2: Fetch metadata from Google Books API
+            api_metadata = fetch_metadata_from_google_books(isbn)
+            metadata.update(api_metadata)
+
+        # Step 3: Apply CLI overrides
+        if args.title:
+            metadata['parent_document'] = args.title
+        if args.author:
+            metadata['author'] = args.author
+        if args.publisher:
+            metadata['publisher'] = args.publisher
+        if args.published_date:
+            metadata['published_date'] = args.published_date
+        if args.genre:
+            metadata['genre'] = args.genre
+        if args.description:
+            metadata['description'] = args.description
+        if args.language:
+            metadata['language'] = args.language
 
         pdf_output_dir = output_dir / pdf.stem
         chunks = split_pdf(pdf, pdf_output_dir, args.background, args.no_split, metadata)

@@ -6,6 +6,8 @@
 
 - **自動分割**: PDFのブックマーク（目次）構造に基づいて節（Level 3）単位で分割
 - **手動分割**: ページ範囲を指定して任意の位置で分割
+- **ISBN自動抽出**: ファイル名からISBNを自動抽出
+- **メタデータ自動取得**: Google Books APIから書籍情報を自動取得
 - **メタデータ付与**: 分割時に書籍情報・章情報をYAMLファイルとして出力
 
 ## インストール
@@ -22,8 +24,8 @@ pip install -r requirements.txt
 # input_pdf/ フォルダ内の全PDFを処理
 python pdf-split-by-contents.py
 
-# 単一のPDFファイルを処理
-python pdf-split-by-contents.py document.pdf
+# 単一のPDFファイルを処理（ISBN自動抽出）
+python pdf-split-by-contents.py 978-1234567890_BookTitle.pdf
 
 # 出力先を指定
 python pdf-split-by-contents.py -o custom_output
@@ -34,16 +36,29 @@ python pdf-split-by-contents.py --no-split
 # バックグラウンドモード（ブックマークなしはスキップ）
 python pdf-split-by-contents.py --background
 
-# メタデータ付きで分割
-python pdf-split-by-contents.py document.pdf \
-  --title "薬機法の実務解説" \
-  --author "山田太郎" \
-  --isbn "9784123456789" \
-  --publisher "法律出版社" \
-  --published-date "2024-04-01" \
-  --genre "法律/医薬品" \
-  --description "薬機法の実務について解説した書籍"
+# ジャンルを手動指定（API取得が粗いため推奨）
+python pdf-split-by-contents.py 978-xxx.pdf --genre "法律/医薬品"
+
+# メタデータを上書き
+python pdf-split-by-contents.py 978-xxx.pdf \
+  --title "正確なタイトル" \
+  --author "著者名" \
+  --genre "法律"
 ```
+
+### ファイル名形式（ISBN自動抽出）
+
+以下の形式でファイル名にISBNを含めると、自動抽出されます：
+
+| 形式 | 例 |
+|------|-----|
+| `ISBN13_任意.pdf` | `9784123456789_薬機法解説.pdf` |
+| `ISBN13.pdf` | `9784123456789.pdf` |
+| `ハイフン付き` | `978-4-12-345678-9_Book.pdf` |
+
+- ハイフンは自動除去されます
+- 13桁でない場合はエラー出力
+- 数字以外が含まれる場合はエラー出力
 
 ### オプション
 
@@ -53,13 +68,21 @@ python pdf-split-by-contents.py document.pdf \
 | `-o, --output` | 出力ディレクトリ（デフォルト: `split_pdf`） |
 | `--no-split` | ブックマークがない場合、分割せずスキップ |
 | `--background` | GUIプロンプトなしで実行（ブックマークなしはスキップ） |
-| `--title` | 元の本のタイトル |
-| `--isbn` | ISBN（13桁） |
+
+### メタデータ上書きオプション
+
+Google Books APIから自動取得した値を上書きできます：
+
+| オプション | 説明 |
+|------------|------|
+| `--title` | 本のタイトル（`parent_document`として出力） |
+| `--isbn` | ISBN（ファイル名からの抽出を上書き） |
 | `--author` | 著者名 |
 | `--publisher` | 出版社 |
 | `--published-date` | 発行日（YYYY-MM-DD形式） |
-| `--genre` | ジャンル |
+| `--genre` | ジャンル（API取得が粗いため手動推奨） |
 | `--description` | 本の概要 |
+| `--language` | 言語コード（例: ja, en） |
 
 ## フォルダ構成
 
@@ -100,23 +123,25 @@ pdf-split-by-contents/
 
 ```yaml
 ---
-parent_document: 薬機法解説書.pdf
-parent_title: 薬機法の実務解説
+parent_document: 薬機法の実務解説
 isbn: 9784123456789
 author: 山田太郎
 publisher: 法律出版社
 published_date: 2024-04-01
+description: 薬機法について解説
+language: ja
 genre: 法律/医薬品
-description: 薬機法の実務について解説した書籍
 chapter_number: 3
 chapter_title: 第3章 製造販売承認
 total_chapters: 12
 split_index: 3
-split_date: 2025-01-09
 ---
 ```
 
-**注意**: 指定されていないオプションはYAMLファイルに出力されません。
+**注意**:
+- ISBNがファイル名から抽出できない場合、API取得はスキップされます
+- API取得に失敗した場合、エラーを出力して処理を継続します
+- 指定されていないオプションはYAMLファイルに出力されません
 
 ## ライセンス
 
