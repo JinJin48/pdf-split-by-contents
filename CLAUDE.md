@@ -12,6 +12,7 @@
 - **手動分割**: ページ範囲を指定して任意の位置で分割
 - **スキップ機能**: ブックマークがないPDFを分割せずスキップ（--no-split）
 - **バックグラウンドモード**: GUIなしで自動処理（ブックマークなしはスキップ）
+- **メタデータ付与**: 分割時に書籍情報・章情報をYAMLファイルとして出力
 
 ### 用途
 
@@ -48,8 +49,10 @@ pdf-split-by-contents/
 - `PdfSplitter`: PDF分割クラス
   - `split_smart()`: ブックマーク構造に基づく自動分割
   - `split_manually()`: ページ範囲指定による手動分割
-- `split_pdf()`: 単一PDF処理のエントリーポイント（no_split/background対応）
-- `main()`: CLI引数処理
+  - `_save_ranges()`: ページ範囲をPDFファイルとして保存、YAMLメタデータ生成
+  - `_write_metadata_yaml()`: YAMLメタデータファイル生成
+- `split_pdf()`: 単一PDF処理のエントリーポイント（no_split/background/metadata対応）
+- `main()`: CLI引数処理（メタデータオプション含む）
 
 **common.py**
 - `INPUT_DIR`, `OUTPUT_DIR`: 入出力ディレクトリ設定
@@ -68,6 +71,7 @@ pdf-split-by-contents/
 - --no-split オプション（ブックマークなしはスキップ）
 - バックグラウンドモード対応（ブックマークなしはスキップ）
 - 進捗推定・ロギング
+- 親情報メタデータ付与機能（YAMLフロントマター出力）
 
 ### 既知の課題
 
@@ -99,7 +103,31 @@ python pdf-split-by-contents.py --no-split
 
 # バックグラウンドモード（ブックマークなしはスキップ）
 python pdf-split-by-contents.py --background
+
+# メタデータ付きで分割
+python pdf-split-by-contents.py document.pdf \
+  --title "薬機法の実務解説" \
+  --author "山田太郎" \
+  --isbn "9784123456789" \
+  --publisher "法律出版社" \
+  --published-date "2024-04-01" \
+  --genre "法律/医薬品" \
+  --description "薬機法の実務について解説した書籍"
 ```
+
+### メタデータオプション
+
+| オプション | 説明 |
+|------------|------|
+| `--title` | 元の本のタイトル |
+| `--isbn` | ISBN（13桁） |
+| `--author` | 著者名 |
+| `--publisher` | 出版社 |
+| `--published-date` | 発行日（YYYY-MM-DD形式） |
+| `--genre` | ジャンル |
+| `--description` | 本の概要 |
+
+指定されていないオプションはYAMLファイルに出力されません。
 
 ### 分割ロジック
 
