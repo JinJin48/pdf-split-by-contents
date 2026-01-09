@@ -215,7 +215,7 @@ class PdfSplitter:
             new_doc.insert_pdf(self.doc, from_page=start, to_page=end)
 
             safe_title = clean_filename(title)[:50]
-            fname = f"{i:03d}_{safe_title}.pdf"
+            fname = f"{i+1:03d}_{safe_title}.pdf"
             fpath = output_dir / fname
 
             new_doc.save(fpath)

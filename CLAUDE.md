@@ -159,6 +159,17 @@ python pdf-split-by-contents.py 978-xxx.pdf \
    - --no-split指定時: スキップ
    - --background指定時: スキップ（警告出力）
 
+### 出力ファイル形式
+
+ファイル番号は001から開始します（目次がある場合、目次が001）。
+
+```
+001_00_Contents.pdf      # 目次（split_index: 1）
+002_Chapter1.pdf         # 第1章（split_index: 2）
+003_Chapter2.pdf         # 第2章（split_index: 3）
+...
+```
+
 ### メタデータ取得フロー
 
 1. ファイル名からISBN抽出（`--isbn`指定時は上書き）

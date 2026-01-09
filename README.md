@@ -110,10 +110,12 @@ pdf-split-by-contents/
 
 ### PDFファイル
 
+ファイル番号は001から開始します（目次がある場合、目次が001）。
+
 ```
-000_00_Contents.pdf
-001_Chapter1_Introduction.pdf
-002_Chapter2_Getting_Started.pdf
+001_00_Contents.pdf
+002_Chapter1_Introduction.pdf
+003_Chapter2_Getting_Started.pdf
 ...
 ```
 
